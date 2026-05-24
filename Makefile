@@ -49,7 +49,7 @@ build-client: ## [auto] Build the Vue.js frontend (called by deploy-client)
 	cd $(CLIENT_DIR) && npm install
 	cd $(CLIENT_DIR) && npm run build
 
-deploy-client: build-client ## Build and deploy frontend to S3 + invalidate CloudFront
+deploy-client: build-client up-infra ## Build and deploy frontend to S3 + invalidate CloudFront
 	$(eval BUCKET := $(shell cd $(PULUMI_DIR) && pulumi stack output frontendBucketName))
 	$(eval CF_ID := $(shell cd $(PULUMI_DIR) && pulumi stack output cloudfrontDistributionId))
 	aws s3 sync $(CLIENT_DIR)/dist s3://$(BUCKET) --delete --region $(AWS_REGION)

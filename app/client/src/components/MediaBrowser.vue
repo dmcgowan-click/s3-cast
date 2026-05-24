@@ -87,8 +87,8 @@
  */
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { browse, getSignedUrl, logout } from '@/services/api';
-import { castAvailable, castState, castMedia, getContentType, isVideo } from '@/services/cast';
+import { apiBrowse, apiGetSignedUrl, apiLogout } from '@/services/api';
+import { castAvailable, castState, castMedia, castGetContentType, castIsVideo } from '@/services/cast';
 import CastButton from './CastButton.vue';
 import LoadingSpinner from './LoadingSpinner.vue';
 
@@ -122,7 +122,7 @@ function displayName(folder: string): string {
 }
 
 function isVideoFile(name: string): boolean {
-  return isVideo(name);
+  return castIsVideo(name);
 }
 
 /** Formats a byte count into a human-readable size string. */
@@ -138,7 +138,7 @@ async function load(prefix: string) {
   loading.value = true;
   error.value = '';
   try {
-    const result = await browse(prefix);
+    const result = await apiBrowse(prefix);
     folders.value = result.folders;
     files.value = result.files;
     currentPrefix.value = prefix;
@@ -161,11 +161,11 @@ function navigateTo(prefix: string) {
 async function playFile(file: { key: string; name: string }, cast = false) {
   loading.value = true;
   try {
-    const url = await getSignedUrl(file.key);
+    const url = await apiGetSignedUrl(file.key);
     const shouldCast = cast || (castAvailable.value && castState.value === 'CONNECTED');
 
     if (shouldCast && castAvailable.value) {
-      const contentType = getContentType(file.name);
+      const contentType = castGetContentType(file.name);
       await castMedia(url, file.name, contentType);
     } else {
       playLocally(url, file.name);
@@ -181,7 +181,7 @@ async function playFile(file: { key: string; name: string }, cast = false) {
 function playLocally(url: string, name: string) {
   playbackUrl.value = url;
   playbackTitle.value = name;
-  playbackIsVideo.value = isVideo(name);
+  playbackIsVideo.value = castIsVideo(name);
 }
 
 function closePlayer() {
@@ -189,7 +189,7 @@ function closePlayer() {
 }
 
 async function handleLogout() {
-  await logout();
+  await apiLogout();
   router.push('/login');
 }
 

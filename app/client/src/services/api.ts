@@ -37,7 +37,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 /** Authenticates the user and establishes a session cookie. */
-export async function login(username: string, password: string): Promise<void> {
+export async function apiLogin(username: string, password: string): Promise<void> {
   await request<{ ok: boolean }>('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -46,26 +46,26 @@ export async function login(username: string, password: string): Promise<void> {
 }
 
 /** Ends the current session by clearing the session cookie. */
-export async function logout(): Promise<void> {
+export async function apiLogout(): Promise<void> {
   await request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' });
 }
 
 /** Lists folders and media files under the given S3 prefix. */
-export async function browse(prefix: string): Promise<BrowseResult> {
+export async function apiBrowse(prefix: string): Promise<BrowseResult> {
   const params = prefix ? `?prefix=${encodeURIComponent(prefix)}` : '';
   return request<BrowseResult>(`/api/media/browse${params}`);
 }
 
 /** Requests a CloudFront signed URL for streaming the given media file. */
-export async function getSignedUrl(key: string): Promise<string> {
+export async function apiGetSignedUrl(key: string): Promise<string> {
   const data = await request<{ url: string }>(`/api/media/url?key=${encodeURIComponent(key)}`);
   return data.url;
 }
 
 /** Returns true if the user has a valid session by probing the browse endpoint. */
-export async function checkSession(): Promise<boolean> {
+export async function apiCheckSession(): Promise<boolean> {
   try {
-    await browse('');
+    await apiBrowse('');
     return true;
   } catch {
     return false;

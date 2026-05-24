@@ -20,7 +20,7 @@
  */
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { login } from '@/services/api';
+import { apiLogin } from '@/services/api';
 import LoadingSpinner from './LoadingSpinner.vue';
 
 const router = useRouter();
@@ -34,7 +34,7 @@ async function handleLogin() {
   error.value = '';
   loading.value = true;
   try {
-    await login(username.value, password.value);
+    await apiLogin(username.value, password.value);
     router.push('/');
   } catch (err: any) {
     error.value = err.message || 'Login failed';
