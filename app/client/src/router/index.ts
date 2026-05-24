@@ -5,7 +5,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Login from '@/components/Login.vue';
 import MediaBrowser from '@/components/MediaBrowser.vue';
-import { checkSession } from '@/services/api';
+import { apiCheckSession } from '@/services/api';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -18,7 +18,7 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   if (!to.meta.requiresAuth) return true;
 
-  const authenticated = await checkSession();
+  const authenticated = await apiCheckSession();
   if (!authenticated) return { name: 'login' };
   return true;
 });

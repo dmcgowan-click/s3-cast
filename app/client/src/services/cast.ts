@@ -16,7 +16,7 @@ let initialized = false;
  * Initialises the Cast SDK. Handles the race condition where the SDK
  * may have already called __onGCastApiAvailable before this module loaded.
  */
-export function initCast(): void {
+export function castInit(): void {
   if (initialized) return;
   initialized = true;
 
@@ -45,13 +45,13 @@ export function initCast(): void {
 }
 
 /** Prompts the user to select a Chromecast device and starts a Cast session. */
-export async function requestCastSession(): Promise<void> {
+export async function castRequestSession(): Promise<void> {
   const context = cast.framework.CastContext.getInstance();
   await context.requestSession();
 }
 
 /** Maps a filename extension to its MIME type for Cast media loading. */
-export function getContentType(filename: string): string {
+export function castGetContentType(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   const types: Record<string, string> = {
     mp4: 'video/mp4',
@@ -65,7 +65,7 @@ export function getContentType(filename: string): string {
 }
 
 /** Returns true if the filename has a video extension (mp4, webm). */
-export function isVideo(filename: string): boolean {
+export function castIsVideo(filename: string): boolean {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   return ['mp4', 'webm'].includes(ext);
 }
@@ -104,7 +104,7 @@ async function loadMedia(
 }
 
 /** Ends the current Cast session and stops playback on the device. */
-export function stopCasting(): void {
+export function castStop(): void {
   const context = cast.framework.CastContext.getInstance();
   const session = context.getCurrentSession();
   session?.endSession(true);
