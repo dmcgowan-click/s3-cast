@@ -84,6 +84,41 @@ The backend runs on container-based Lambda (arm64) which provides native **scale
 
 All build steps rsync source to `/home/ubuntu/workspace/` before running (mounted filesystem performance optimisation).
 
+### First-Time Setup
+
+On a fresh deploy, the Lambda requires a container image that doesn't exist yet (the ECR repo is created during `up-infra`). Use `bootstrap` to handle this automatically:
+
+```bash
+# First-time deploy (creates ECR → pushes image → completes infra)
+make bootstrap
+```
+
+### S3 State Backend (optional)
+
+By default, Pulumi uses its local/cloud backend for state. To store state in an S3 bucket, export `PULUMI_STATE_BUCKET` before running any Make commands:
+
+```bash
+export PULUMI_STATE_BUCKET=my-state-bucket
+```
+
+All subsequent `make` commands (`preview-infra`, `up-infra`, `bootstrap`, etc.) will use the S3 backend automatically.
+
+The bucket region defaults to `AWS_REGION` (`ap-southeast-2`). Override if your state bucket is in a different region:
+
+```bash
+export AWS_REGION=us-east-1
+```
+
+To migrate existing local state to S3:
+
+```bash
+make migrate-state
+```
+
+Run `make help` to see all available targets.
+
+### Ongoing Deployment
+
 ```bash
 # Preview infrastructure changes
 make preview-infra
@@ -100,8 +135,6 @@ make deploy-client
 # Set username, password, and JWT secret in Secrets Manager
 make set-credentials
 ```
-
-Run `make help` to see all available targets.
 
 ## API Endpoints
 
