@@ -1,4 +1,4 @@
-.PHONY: help prepare-infra prepare-server build-server deploy-server build-authorizer build-client deploy-client preview-infra up-infra set-credentials
+.PHONY: help prepare-infra prepare-server build-server deploy-server build-authorizer build-client deploy-client preview-infra up-infra set-credentials migrate-state bootstrap
 
 .DEFAULT_GOAL := help
 help: ## Show this help message
@@ -15,7 +15,13 @@ AWS_ACCOUNT_ID ?= 601374407704
 ECR_REPO := local-cast-backend
 IMAGE_TAG ?= latest
 ECR_URI := $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(ECR_REPO)
+PULUMI_STATE_BUCKET ?=
 export PULUMI_CONFIG_PASSPHRASE :=
+
+# Login to S3 backend if PULUMI_STATE_BUCKET is set, otherwise use default (local/Pulumi Cloud)
+define pulumi_login
+$(if $(PULUMI_STATE_BUCKET),cd $(PULUMI_DIR) && pulumi login s3://$(PULUMI_STATE_BUCKET)?region=$(AWS_REGION),)
+endef
 
 prepare-infra: ## [auto] Sync Pulumi code and install deps (called by up-infra, preview-infra)
 	mkdir -p $(PULUMI_DIR)
@@ -58,14 +64,44 @@ deploy-client: build-client up-infra ## Build and deploy frontend to S3 + invali
 up-infra: prepare-infra build-authorizer ## Deploy infrastructure with Pulumi
 	mkdir -p $(PULUMI_DIR)/authorizer-bundle
 	cp $(AUTHORIZER_DIR)/dist/index.js $(PULUMI_DIR)/authorizer-bundle/index.js
+	$(call pulumi_login)
 	cd $(PULUMI_DIR) && pulumi stack select $(PULUMI_STACK) --create 2>/dev/null; \
 	pulumi up --yes --cwd $(PULUMI_DIR)
 
 preview-infra: prepare-infra build-authorizer ## Preview infrastructure changes
 	mkdir -p $(PULUMI_DIR)/authorizer-bundle
 	cp $(AUTHORIZER_DIR)/dist/index.js $(PULUMI_DIR)/authorizer-bundle/index.js
+	$(call pulumi_login)
 	cd $(PULUMI_DIR) && pulumi stack select $(PULUMI_STACK) --create 2>/dev/null; \
 	pulumi preview --cwd $(PULUMI_DIR)
 
 set-credentials: ## Set username, password and JWT secret in Secrets Manager
 	@scripts/set-credentials.sh $(PULUMI_DIR) $(AWS_REGION)
+
+bootstrap: prepare-infra build-authorizer build-server ## First-time deploy: create ECR, push image, then full infra
+	mkdir -p $(PULUMI_DIR)/authorizer-bundle
+	cp $(AUTHORIZER_DIR)/dist/index.js $(PULUMI_DIR)/authorizer-bundle/index.js
+	$(call pulumi_login)
+	cd $(PULUMI_DIR) && pulumi stack select $(PULUMI_STACK) --create 2>/dev/null; \
+	pulumi up --yes --cwd $(PULUMI_DIR) || true
+	@echo "── Pushing container image to ECR ──"
+	mkdir -p ~/.docker && echo '{}' > ~/.docker/config.json
+	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_URI)
+	docker tag $(ECR_REPO):$(IMAGE_TAG) $(ECR_URI):$(IMAGE_TAG)
+	docker push $(ECR_URI):$(IMAGE_TAG)
+	@echo "── Completing infrastructure deployment ──"
+	cd $(PULUMI_DIR) && pulumi up --yes --cwd $(PULUMI_DIR)
+
+migrate-state: prepare-infra ## Migrate local Pulumi state to S3 backend (requires PULUMI_STATE_BUCKET)
+ifndef PULUMI_STATE_BUCKET
+	$(error PULUMI_STATE_BUCKET is required. Usage: make migrate-state PULUMI_STATE_BUCKET=my-bucket)
+endif
+	cd $(PULUMI_DIR) && pulumi login --local
+	cd $(PULUMI_DIR) && pulumi stack select $(PULUMI_STACK) 2>/dev/null || \
+		(echo "ERROR: Stack $(PULUMI_STACK) not found in local state"; exit 1)
+	cd $(PULUMI_DIR) && pulumi stack export --file /tmp/pulumi-state-export.json
+	cd $(PULUMI_DIR) && pulumi login s3://$(PULUMI_STATE_BUCKET)?region=$(AWS_REGION)
+	cd $(PULUMI_DIR) && pulumi stack select $(PULUMI_STACK) --create 2>/dev/null
+	cd $(PULUMI_DIR) && pulumi stack import --file /tmp/pulumi-state-export.json
+	@rm -f /tmp/pulumi-state-export.json
+	@echo "State migrated successfully to s3://$(PULUMI_STATE_BUCKET)"
