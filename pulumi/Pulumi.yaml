@@ -4,3 +4,7 @@ runtime:
   options:
     typescript: true
 description: Infrastructure for the Local Cast media streaming application
+config:
+  local-cast:tags:
+    value:
+      GitHub: https://github.com/dmcgowan-click/local-cast.git

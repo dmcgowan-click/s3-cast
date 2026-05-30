@@ -7,6 +7,8 @@ export interface DnsCertificateArgs {
   domain: string;
   /** The parent hosted zone domain (e.g. dmcgowan.click). */
   hostedZoneDomain: string;
+  /** Default tags to apply to all resources. */
+  defaultTags?: Record<string, string>;
 }
 
 /**
@@ -28,6 +30,7 @@ export class DnsCertificate extends pulumi.ComponentResource {
     /** Provider targeting us-east-1, required for CloudFront ACM certificates. */
     const usEast1 = new aws.Provider("us-east-1", {
       region: "us-east-1",
+      defaultTags: args.defaultTags ? { tags: args.defaultTags } : undefined,
     }, { parent: this });
 
     /** Look up the existing hosted zone — we must not create a new one. */

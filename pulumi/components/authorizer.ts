@@ -65,7 +65,7 @@ export class AuthorizerLambda extends pulumi.ComponentResource {
 
     /** The authorizer Lambda function (zip-deployed, fast cold starts). */
     this.fn = new aws.lambda.Function("authorizer-lambda", {
-      runtime: "nodejs20.x",
+      runtime: "nodejs22.x",
       handler: "index.handler",
       code: new pulumi.asset.FileArchive("./authorizer-bundle"),
       role: role.arn,
@@ -82,7 +82,7 @@ export class AuthorizerLambda extends pulumi.ComponentResource {
 
     /** Origin-verify-only Lambda for unprotected routes. Same bundle, different handler. */
     this.originVerifyFn = new aws.lambda.Function("origin-verify-lambda", {
-      runtime: "nodejs20.x",
+      runtime: "nodejs22.x",
       handler: "index.originHandler",
       code: new pulumi.asset.FileArchive("./authorizer-bundle"),
       role: role.arn,
