@@ -1,0 +1,196 @@
+# Local Cast
+
+A cloud-hosted web application for browsing audio and video files stored in S3 and casting them to Chromecast devices on the local network.
+
+If you're a bit old school and still have local MP3's, MP4's, etc, and you want the convenience of casting them, this is for you!
+
+## Install
+
+### Prerequisites
+
+- AWS account with credentials configured
+- Node.js (LTS)
+- Docker
+- Pulumi CLI
+
+### Configuration
+
+Before deploying, update `pulumi/Pulumi.prod.yaml` with your own values for the parameters marked with `<>`:
+
+```yaml
+config:
+  aws:region: ap-southeast-2
+  local-cast:projectName: local-cast
+  local-cast:domain: <your-domain e.g. cast.mydomain.com>
+  local-cast:mediaBucketName: <your-media-bucket e.g. my-media-files>
+  local-cast:hostedZoneDomain: <your-hosted-zone e.g. mydomain.com>
+```
+
+| Parameter | Description |
+|---|---|
+| `local-cast:domain` | FQDN for the app. Must be under a public hosted zone in your AWS account |
+| `local-cast:mediaBucketName` | Existing S3 bucket containing your media files |
+| `local-cast:hostedZoneDomain` | Root domain of your Route 53 public hosted zone |
+
+Also update the following in the `Makefile` to match your environment:
+
+| Variable | Default | Description |
+|---|---|---|
+| `PULUMI_STACK` | `organization/local-cast/prod` | Pulumi stack identifier |
+| `AWS_REGION` | `ap-southeast-2` | AWS region for deployment |
+| `AWS_ACCOUNT_ID` | `601374407704` | Your AWS account ID (used for ECR URI) |
+
+### Build & Deploy
+
+All build steps rsync source to `/home/ubuntu/workspace/` before running (mounted filesystem performance optimisation).
+
+#### First-Time Setup
+
+On a fresh deploy, the Lambda requires a container image that doesn't exist yet (the ECR repo is created during `up-infra`). Use `bootstrap` to handle this automatically:
+
+```bash
+# First-time deploy (creates ECR → pushes image → completes infra)
+make bootstrap
+```
+
+#### S3 State Backend (optional)
+
+By default, Pulumi uses its local/cloud backend for state. To store state in an S3 bucket, export `PULUMI_STATE_BUCKET` before running any Make commands:
+
+```bash
+export PULUMI_STATE_BUCKET=my-state-bucket
+```
+
+All subsequent `make` commands (`preview-infra`, `up-infra`, `bootstrap`, etc.) will use the S3 backend automatically.
+
+The bucket region defaults to `AWS_REGION` (`ap-southeast-2`). Override if your state bucket is in a different region:
+
+```bash
+export AWS_REGION=us-east-1
+```
+
+To migrate existing local state to S3:
+
+```bash
+make migrate-state
+```
+
+Run `make help` to see all available targets.
+
+## Ongoing Deployment
+
+```bash
+# Preview infrastructure changes
+make preview-infra
+
+# Deploy infrastructure (builds authorizer automatically)
+make up-infra
+
+# Build and push backend Docker image to ECR
+make deploy-server
+
+# Build and deploy frontend to S3 + invalidate CloudFront
+make deploy-client
+
+# Set username, password, and JWT secret in Secrets Manager
+make set-credentials
+```
+
+## Architecture
+
+```
+                                               ┌────────────────────┐
+                                          ┌───▶│  S3 (frontend)     │
+                                          │    └────────────────────┘
+┌──────────────┐       ┌──────────────┐   │    ┌────────────────────┐
+│  Vue.js SPA  │──────▶│  CloudFront  │───┼───▶│  S3 (media bucket) │◀── signed URL streaming
+│  (browser)   │       │  (CDN)       │   │    │                    │
+└──────────────┘       └──────────────┘   │    └────────────────────┘
+                                          │    ┌──────────────────┐     ┌──────────────────────────┐
+                                          └───▶│  API Gateway     │────▶│  Lambda (container image) │
+                                               │  (HTTP API)      │     │  (backend API)            │
+                                               │  + authorizer    │     └──────────────────────────┘
+                                               └──────────────────┘
+                                                        │
+                                               ┌──────────────────┐
+                                               │  Lambda authorizer│
+                                               │  (JWT validation) │
+                                               └──────────────────┘
+```
+
+All traffic flows through a single CloudFront distribution:
+
+| Path | Origin | Purpose |
+|---|---|---|
+| `/api/*` | API Gateway → Lambda | Backend API (same-origin, no CORS) |
+| `/media/*` | S3 media bucket | Signed URL media streaming |
+| `/*` | S3 frontend bucket | Vue.js SPA static assets |
+
+The backend runs on container-based Lambda (arm64) which provides native **scale-to-zero** — zero cost when idle.
+
+## Tech Stack
+
+| Component | Technology |
+|---|---|
+| Frontend | Vue.js 3 + TypeScript (Vite) |
+| Backend | Node.js + TypeScript + Express (Lambda container) |
+| Infrastructure | Pulumi (TypeScript) |
+| CDN / HTTPS | CloudFront + ACM |
+| Media Storage | S3 (`dmcgowan-cloudstore`) |
+| Auth | Username/password, bcrypt, JWT session cookies, Lambda authorizer |
+| DNS | Route 53 |
+
+## Features
+
+- **Media browsing** — Navigate folders and files in S3 with URL-based routing (deep-linkable, supports browser back/forward)
+- **Chromecast support** — Cast audio/video to Chromecast devices on the LAN via the Google Cast SDK (Default Media Receiver)
+- **Local playback** — Clicking a file plays it locally via the inline HTML5 `<audio>`/`<video>` player by default; casting only occurs when explicitly requested or a Chromecast session is already connected
+- **Supported formats** — `.mp4`, `.webm`, `.mp3`, `.flac`, `.aac`, `.ogg`
+- **Signed URL streaming** — Media served via CloudFront signed URLs (6-hour expiry)
+
+## Project Structure
+
+```
+├── app/
+│   ├── authorizer/          # Lambda authorizer (JWT session validation)
+│   ├── client/              # Vue.js frontend (SPA)
+│   ├── server/              # Node.js backend (Lambda container)
+│   └── Dockerfile
+├── pulumi/                  # Infrastructure as code (Pulumi + TypeScript)
+│   ├── components/          # Reusable Pulumi component resources
+│   └── index.ts             # Stack entrypoint
+├── scripts/                     # Utility scripts
+│   └── set-credentials.sh   # Set auth credentials in Secrets Manager
+├── Makefile                 # Build and deploy targets
+└── REQUIREMENTS-FINAL.md    # Detailed requirements specification
+```
+
+## API Endpoints
+
+| Method | Path | Description | Auth |
+|---|---|---|---|
+| `POST` | `/api/auth/login` | Authenticate with username/password | No |
+| `POST` | `/api/auth/logout` | Clear session | Yes |
+| `GET` | `/api/media/browse` | List folders and files at a given prefix | Yes |
+| `GET` | `/api/media/url` | Get a signed URL for a media file | Yes |
+| `GET` | `/api/health` | Health check | No |
+
+## Authentication
+
+Authentication uses a two-layer approach:
+
+1. **Login** — `POST /api/auth/login` validates credentials (bcrypt) and issues a signed JWT session cookie
+2. **API Gateway authorizer** — A Lambda authorizer validates the JWT session cookie on protected routes (`/api/media/*`) before the request reaches the backend. This moves auth enforcement to the infrastructure layer, keeping the backend stateless and simple.
+
+## Security
+
+- HTTPS enforced via CloudFront
+- CloudFront response headers policy: HSTS (1 year, preload), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`
+- S3 buckets are private (OAC for frontend and media, signed URLs for media streaming)
+- Credentials stored in AWS Secrets Manager
+- Session cookies: `HttpOnly`, `Secure`, `SameSite=Strict`
+- JWT signing and verification pinned to `HS256` algorithm
+- Prefix parameter validated to prevent path traversal
+- API Gateway Lambda authorizer enforces authentication at the infrastructure layer
+- Least-privilege IAM on Lambda execution role
+- CloudFront standard access logging enabled for audit and debugging
