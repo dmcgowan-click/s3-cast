@@ -1,4 +1,4 @@
-# Local Cast
+# S3 Cast (Formally Local Cast)
 
 A cloud-hosted web application for browsing audio and video files stored in S3 and casting them to Chromecast devices on the local network.
 
