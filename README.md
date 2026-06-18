@@ -38,7 +38,7 @@ Also update the following in the `Makefile` to match your environment:
 |---|---|---|
 | `PULUMI_STACK` | `organization/local-cast/prod` | Pulumi stack identifier |
 | `AWS_REGION` | `ap-southeast-2` | AWS region for deployment |
-| `AWS_ACCOUNT_ID` | `601374407704` | Your AWS account ID (used for ECR URI) |
+| `AWS_ACCOUNT_ID` | *(required)* | Your AWS account ID (used for ECR URI) |
 
 ### Build & Deploy
 
