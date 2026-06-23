@@ -2,7 +2,7 @@ name: Sync to public repo
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/sync-debug]
 
 jobs:
   sync:
@@ -52,10 +52,17 @@ jobs:
           echo "${{ secrets.PUBLIC_REPO_DEPLOY_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          echo "Key file size: $(wc -c < ~/.ssh/deploy_key) bytes"
+          echo "Key line count: $(wc -l < ~/.ssh/deploy_key)"
+          echo "Key first line length: $(head -1 ~/.ssh/deploy_key | wc -c)"
+          echo "Has CRLF: $(file ~/.ssh/deploy_key)"
+          ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1 && echo "Key validation: PASS" || echo "Key validation: FAIL"
+          ssh -vvv -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -T git@github.com 2>&1 || true
 
       - name: Push to public repo
         env:
           GIT_SSH_COMMAND: "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
         run: |
+          echo "GIT_SSH_COMMAND=$GIT_SSH_COMMAND"
           git remote add public git@github.com:dmcgowan-click/s3-cast.git
           git push public main --force
