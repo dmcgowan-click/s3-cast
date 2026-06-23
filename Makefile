@@ -11,7 +11,7 @@ AUTHORIZER_DIR := $(WORK_DIR)/authorizer
 CLIENT_DIR := $(WORK_DIR)/client
 PULUMI_STACK ?= organization/local-cast/prod
 AWS_REGION ?= ap-southeast-2
-AWS_ACCOUNT_ID ?= 601374407704
+AWS_ACCOUNT_ID ?= 
 ECR_REPO := local-cast-backend
 IMAGE_TAG ?= latest
 ECR_URI := $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(ECR_REPO)
@@ -37,11 +37,22 @@ prepare-server: ## [auto] Sync server code and install deps (called by build-ser
 build-server: prepare-server ## Build backend Docker image (arm64)
 	cd $(SERVER_DIR) && docker build --platform linux/arm64 -t $(ECR_REPO):$(IMAGE_TAG) .
 
-deploy-server: build-server ## Build and push Docker image to ECR
+deploy-server: build-server ## Build and push Docker image to ECR, update Lambda
 	mkdir -p ~/.docker && echo '{}' > ~/.docker/config.json
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_URI)
 	docker tag $(ECR_REPO):$(IMAGE_TAG) $(ECR_URI):$(IMAGE_TAG)
 	docker push $(ECR_URI):$(IMAGE_TAG)
+	$(eval LAMBDA_FN := $(shell cd $(PULUMI_DIR) && pulumi stack output lambdaFunctionName 2>/dev/null))
+	@if [ -n "$(LAMBDA_FN)" ]; then \
+		echo "Updating Lambda function $(LAMBDA_FN) to use new image..."; \
+		aws lambda update-function-code --function-name $(LAMBDA_FN) --image-uri $(ECR_URI):$(IMAGE_TAG) --region $(AWS_REGION) > /dev/null; \
+		echo "Waiting for Lambda update to complete..."; \
+		aws lambda wait function-updated --function-name $(LAMBDA_FN) --region $(AWS_REGION); \
+		echo "Lambda function updated."; \
+	else \
+		echo "ERROR: Could not determine Lambda function name. Run 'make up-infra' first." >&2; \
+		exit 1; \
+	fi
 
 build-authorizer: ## [auto] Bundle the API Gateway authorizer Lambda (called by up-infra, preview-infra)
 	mkdir -p $(AUTHORIZER_DIR)
@@ -66,14 +77,14 @@ up-infra: prepare-infra build-authorizer ## Deploy infrastructure with Pulumi
 	cp $(AUTHORIZER_DIR)/dist/index.js $(PULUMI_DIR)/authorizer-bundle/index.js
 	$(call pulumi_login)
 	cd $(PULUMI_DIR) && pulumi stack select $(PULUMI_STACK) --create 2>/dev/null; \
-	pulumi up --yes --cwd $(PULUMI_DIR)
+	pulumi up --yes --refresh --cwd $(PULUMI_DIR)
 
 preview-infra: prepare-infra build-authorizer ## Preview infrastructure changes
 	mkdir -p $(PULUMI_DIR)/authorizer-bundle
 	cp $(AUTHORIZER_DIR)/dist/index.js $(PULUMI_DIR)/authorizer-bundle/index.js
 	$(call pulumi_login)
 	cd $(PULUMI_DIR) && pulumi stack select $(PULUMI_STACK) --create 2>/dev/null; \
-	pulumi preview --cwd $(PULUMI_DIR)
+	pulumi preview --refresh --cwd $(PULUMI_DIR)
 
 set-credentials: ## Set username, password and JWT secret in Secrets Manager
 	@scripts/set-credentials.sh $(PULUMI_DIR) $(AWS_REGION)

@@ -19,6 +19,10 @@ app.use('/api', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/media', mediaRouter);
 
+app.use((_req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });

@@ -30,6 +30,10 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
       const body = await res.json().catch(() => ({}));
       throw new Error((body as any).error || `Request failed: ${res.status}`);
     }
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Unexpected response from server (${contentType || 'no content-type'})`);
+    }
     return res.json() as Promise<T>;
   } finally {
     clearTimeout(timeout);
@@ -54,6 +58,11 @@ export async function apiLogout(): Promise<void> {
 export async function apiBrowse(prefix: string): Promise<BrowseResult> {
   const params = prefix ? `?prefix=${encodeURIComponent(prefix)}` : '';
   return request<BrowseResult>(`/api/media/browse${params}`);
+}
+
+/** Searches files and folders by name across all media directories. */
+export async function apiSearch(query: string): Promise<BrowseResult> {
+  return request<BrowseResult>(`/api/media/search?q=${encodeURIComponent(query)}`);
 }
 
 /** Requests a CloudFront signed URL for streaming the given media file. */

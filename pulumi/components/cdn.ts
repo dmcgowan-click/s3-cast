@@ -68,6 +68,24 @@ export class CdnDistribution extends pulumi.ComponentResource {
 }`,
     }, { parent: this });
 
+    /**
+     * CloudFront function for SPA routing. Rewrites paths that don't contain a
+     * file extension to /index.html so Vue Router handles client-side routes.
+     * This replaces custom error responses, allowing API 404s to pass through.
+     */
+    const spaRewrite = new aws.cloudfront.Function("spa-rewrite", {
+      name: `${args.projectName}-spa-rewrite`,
+      runtime: "cloudfront-js-2.0",
+      code: `function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+  if (uri !== '/' && !uri.match(/\\.([a-zA-Z0-9]+)$/)) {
+    request.uri = '/index.html';
+  }
+  return request;
+}`,
+    }, { parent: this });
+
     /** S3 bucket for CloudFront standard access logs. */
     this.logBucket = new aws.s3.BucketV2("cdn-log-bucket", {
       bucketPrefix: `${args.projectName}-cdn-logs-`,
@@ -203,6 +221,10 @@ export class CdnDistribution extends pulumi.ComponentResource {
         compress: true,
         cachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6", // CachingOptimized
         responseHeadersPolicyId: responseHeadersPolicy.id,
+        functionAssociations: [{
+          eventType: "viewer-request",
+          functionArn: spaRewrite.arn,
+        }],
       },
 
       /* ─── /api/* behavior: proxy to API Gateway, no caching ─── */
@@ -236,24 +258,7 @@ export class CdnDistribution extends pulumi.ComponentResource {
         },
       ],
 
-      /**
-       * Custom error response to support SPA client-side routing.
-       * Returns index.html for 403/404 so Vue Router handles the path.
-       */
-      customErrorResponses: [
-        {
-          errorCode: 403,
-          responseCode: 200,
-          responsePagePath: "/index.html",
-          errorCachingMinTtl: 10,
-        },
-        {
-          errorCode: 404,
-          responseCode: 200,
-          responsePagePath: "/index.html",
-          errorCachingMinTtl: 10,
-        },
-      ],
+
     }, { parent: this });
 
     this.registerOutputs({
