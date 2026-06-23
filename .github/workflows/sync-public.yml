@@ -1,0 +1,57 @@
+name: Sync to public repo
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Remove excluded files from history
+        run: |
+          EXCLUDE_FILE=".github/sync-exclude"
+          if [[ ! -f "$EXCLUDE_FILE" ]]; then
+            echo "No sync-exclude file found, pushing as-is"
+            exit 0
+          fi
+
+          # Read patterns from sync-exclude
+          PATHS_TO_REMOVE=()
+          while IFS= read -r pattern || [[ -n "$pattern" ]]; do
+            [[ -z "$pattern" || "$pattern" == \#* ]] && continue
+            PATHS_TO_REMOVE+=("$pattern")
+          done < "$EXCLUDE_FILE"
+
+          if [[ ${#PATHS_TO_REMOVE[@]} -eq 0 ]]; then
+            echo "No paths to exclude"
+            exit 0
+          fi
+
+          echo "Excluding from sync:"
+          printf '  %s\n' "${PATHS_TO_REMOVE[@]}"
+
+          # Use git filter-repo to remove paths from the copy
+          pip install git-filter-repo
+
+          FILTER_ARGS=""
+          for path in "${PATHS_TO_REMOVE[@]}"; do
+            FILTER_ARGS="$FILTER_ARGS --path $path --invert-paths"
+          done
+
+          # filter-repo requires a fresh clone
+          git filter-repo $FILTER_ARGS --force
+
+      - name: Push to public repo
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PUBLIC_REPO_DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+
+          git remote add public git@github.com:dmcgowan-click/s3-cast.git
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key" git push public main --force
