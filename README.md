@@ -38,7 +38,7 @@ Also update the following in the `Makefile` to match your environment:
 |---|---|---|
 | `PULUMI_STACK` | `organization/local-cast/prod` | Pulumi stack identifier |
 | `AWS_REGION` | `ap-southeast-2` | AWS region for deployment |
-| `AWS_ACCOUNT_ID` | `601374407704` | Your AWS account ID (used for ECR URI) |
+| `AWS_ACCOUNT_ID` | *(empty)* | Your AWS account ID (used for ECR URI) |
 
 ### Build & Deploy
 
@@ -86,7 +86,7 @@ make preview-infra
 # Deploy infrastructure (builds authorizer automatically)
 make up-infra
 
-# Build and push backend Docker image to ECR
+# Build and push backend Docker image to ECR + update Lambda
 make deploy-server
 
 # Build and deploy frontend to S3 + invalidate CloudFront
@@ -143,6 +143,7 @@ The backend runs on container-based Lambda (arm64) which provides native **scale
 ## Features
 
 - **Media browsing** — Navigate folders and files in S3 with URL-based routing (deep-linkable, supports browser back/forward)
+- **Search** — Find files and folders by name across all media directories without navigating the folder hierarchy
 - **Chromecast support** — Cast audio/video to Chromecast devices on the LAN via the Google Cast SDK (Default Media Receiver)
 - **Local playback** — Clicking a file plays it locally via the inline HTML5 `<audio>`/`<video>` player by default; casting only occurs when explicitly requested or a Chromecast session is already connected
 - **Supported formats** — `.mp4`, `.webm`, `.mp3`, `.flac`, `.aac`, `.ogg`
@@ -173,6 +174,7 @@ The backend runs on container-based Lambda (arm64) which provides native **scale
 | `POST` | `/api/auth/logout` | Clear session | Yes |
 | `GET` | `/api/media/browse` | List folders and files at a given prefix | Yes |
 | `GET` | `/api/media/url` | Get a signed URL for a media file | Yes |
+| `GET` | `/api/media/search` | Search files and folders by name | Yes |
 | `GET` | `/api/health` | Health check | No |
 
 ## Authentication

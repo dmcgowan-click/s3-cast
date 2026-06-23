@@ -152,4 +152,5 @@ export const apiGatewayEndpoint = apigw.api.apiEndpoint;
 export const frontendBucketName = frontend.bucket.bucket;
 export const cdnLogBucketName = cdn.logBucket.bucket;
 export const credentialsSecretArn = secrets.credentialsSecret.arn;
+export const lambdaFunctionName = lambda.fn.name;
 export const siteUrl = `https://${domain}`;

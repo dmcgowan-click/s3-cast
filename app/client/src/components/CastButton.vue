@@ -22,7 +22,9 @@ import { castState, castAvailable, castRequestSession, castStop } from '@/servic
 
 const isConnected = computed(() => castState.value === 'CONNECTED');
 
-/** Toggles the Cast session — connects if idle, disconnects if active. */
+/** 
+ * Toggles the Cast session — connects if idle, disconnects if active. 
+ */
 function handleClick() {
   if (isConnected.value) {
     castStop();

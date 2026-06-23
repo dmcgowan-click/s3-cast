@@ -29,7 +29,9 @@ const password = ref('');
 const error = ref('');
 const loading = ref(false);
 
-/** Submits credentials to the login endpoint and navigates on success. */
+/** 
+ * Submits credentials to the login endpoint and navigates on success. 
+ */
 async function handleLogin() {
   error.value = '';
   loading.value = true;

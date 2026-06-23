@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { browseMedia } from '../services/s3';
+import { browseMedia, searchMedia } from '../services/s3';
 import { generateSignedUrl } from '../services/cloudfront';
 
 /**
@@ -46,6 +46,26 @@ mediaRouter.get('/url', async (req: Request, res: Response): Promise<void> => {
     res.json({ url });
   } catch (err) {
     console.error('Signed URL error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /search — Searches files and folders by name across all allowed prefixes.
+ * Returns matching folders and files (case-insensitive, capped at 50 results).
+ */
+mediaRouter.get('/search', async (req: Request, res: Response): Promise<void> => {
+  const query = (req.query.q as string) || '';
+  if (!query || query.length < 2) {
+    res.status(400).json({ error: 'Query must be at least 2 characters' });
+    return;
+  }
+
+  try {
+    const result = await searchMedia(query);
+    res.json(result);
+  } catch (err) {
+    console.error('Search error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
