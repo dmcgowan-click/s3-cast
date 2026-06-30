@@ -38,6 +38,9 @@ build-server: prepare-server ## Build backend Docker image (arm64)
 	cd $(SERVER_DIR) && docker build --platform linux/arm64 -t $(ECR_REPO):$(IMAGE_TAG) .
 
 deploy-server: build-server ## Build and push Docker image to ECR, update Lambda
+ifndef AWS_ACCOUNT_ID
+	$(error AWS_ACCOUNT_ID is required. Set it in the Makefile or pass via environment/command line)
+endif
 	mkdir -p ~/.docker && echo '{}' > ~/.docker/config.json
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_URI)
 	docker tag $(ECR_REPO):$(IMAGE_TAG) $(ECR_URI):$(IMAGE_TAG)
@@ -90,6 +93,9 @@ set-credentials: ## Set username, password and JWT secret in Secrets Manager
 	@scripts/set-credentials.sh $(PULUMI_DIR) $(AWS_REGION)
 
 bootstrap: prepare-infra build-authorizer build-server ## First-time deploy: create ECR, push image, then full infra
+ifndef AWS_ACCOUNT_ID
+	$(error AWS_ACCOUNT_ID is required. Set it in the Makefile or pass via environment/command line)
+endif
 	mkdir -p $(PULUMI_DIR)/authorizer-bundle
 	cp $(AUTHORIZER_DIR)/dist/index.js $(PULUMI_DIR)/authorizer-bundle/index.js
 	$(call pulumi_login)
