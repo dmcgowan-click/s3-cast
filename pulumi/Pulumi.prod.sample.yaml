@@ -1,0 +1,16 @@
+config:
+  aws:region: ap-southeast-2
+  local-cast:projectName: local-cast
+  local-cast:domain: <your-domain e.g. cast.mydomain.com>
+  local-cast:mediaBucketName: <your-media-bucket e.g. my-media-files>
+  local-cast:hostedZoneDomain: <your-hosted-zone e.g. mydomain.com>
+  local-cast:credentialsSecretDescription: "Local Cast user credentials (username, passwordHash, jwtSecret)"
+  local-cast:cf:
+    geoRestrictionCountries:
+      - AU
+      - PH
+    privateKeyDescription: "CloudFront signing private key for generating signed URLs"
+    publicKeyComment: "Public key for Local Cast CloudFront signed URLs"
+    keyGroupComment: "Key group for Local Cast signed URL access"
+    oacDescription: "OAC for Local Cast S3 bucket access"
+    cdnComment: "Local Cast CDN"
