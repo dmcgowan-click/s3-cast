@@ -1,2 +1,2 @@
-Pulumi.prod.yaml
-Pulumi.yaml
+pulumi/Pulumi.prod.yaml
+pulumi/Pulumi.yaml
